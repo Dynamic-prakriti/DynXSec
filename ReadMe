@@ -16,7 +16,7 @@ DynXSec is a lightweight **Security Information and Event Management (SIEM)** sy
 ### 1. Clone Repository
 
 ```bash
-git clone https://github.com/your-username/DynXSec.git
+git clone https://github.com/Dynamic-prakriti/DynXSec.git
 cd DynXSec
 ```
 
