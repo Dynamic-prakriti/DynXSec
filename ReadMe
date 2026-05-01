@@ -2,8 +2,6 @@
 
 DynXSec is a lightweight **Security Information and Event Management (SIEM)** system designed for real-time monitoring, alerting, and case management.
 
----
-
 ## Features
 
 * Security Dashboard
@@ -11,32 +9,3 @@ DynXSec is a lightweight **Security Information and Event Management (SIEM)** sy
 * Alert Engine
 * Case Management
 
----
-
-## Setup Instructions
-
-### 1. Clone Repository
-
-```bash 
-git clone https://github.com/Dynamic-prakriti/DynXSec.git
-cd DynXSec
-```
-
-### 2. Install Dependencies
-
-```bash 
-pip install -r requirements.txt
-```
-
-### 3. Run Backend Server
-
-```bash 
-cd server
-python app.py
-```
-
-### 4. Open Frontend
-
-Open `index.html` in your browser
-
----
