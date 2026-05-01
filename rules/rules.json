@@ -1,0 +1,65 @@
+{
+  "rules": [
+    {
+      "name": "Brute Force Attack",
+      "type": "threshold",
+      "field": "status",
+      "value": "failed",
+      "threshold": 5,
+      "group_by": "ip",
+      "cooldown": 300,
+      "message": "Multiple failed login attempts",
+      "severity": "high"
+    },
+    {
+      "name": "Suspicious Login Success",
+      "type": "sequence",
+      "group_by": "ip",
+      "failure_count": 5,
+      "success_field": "status",
+      "success_value": "success",
+      "cooldown": 300,
+      "message": "Login success after multiple failures",
+      "severity": "medium"
+    },
+    {
+      "name": "Rapid Brute Force",
+      "type": "time_window",
+      "field": "status",
+      "value": "failed",
+      "threshold": 10,
+      "window_seconds": 120,
+      "group_by": "ip",
+      "cooldown": 300,
+      "message": "Too many failed logins in short time",
+      "severity": "high"
+    },
+    {
+      "name": "Impossible Travel (Simulated)",
+      "type": "multi_value",
+      "field": "ip",
+      "unique_threshold": 3,
+      "window_seconds": 300,
+      "group_by": "user",
+      "message": "User logged in from multiple IPs in short time",
+      "severity": "medium"
+    },
+    {
+      "name": "Login After Long Silence",
+      "type": "anomaly",
+      "group_by": "ip",
+      "idle_seconds": 600,
+      "message": "Login after long inactivity",
+      "severity": "low"
+    },
+    {
+      "name": "High Frequency Requests",
+      "type": "rate_limit",
+      "group_by": "ip",
+      "threshold": 20,
+      "window_seconds": 60,
+      "message": "High number of requests in short time",
+      "severity": "medium"
+    }
+  ]
+}

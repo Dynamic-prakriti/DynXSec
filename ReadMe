@@ -1,0 +1,35 @@
+# Mini SIEM System (Python)
+
+A lightweight Security Information and Event Management (SIEM) system built using Python.
+
+## Features
+- Log collection via agent (Linux/Windows ready)
+- Rule-based threat detection (brute force, suspicious activity)
+- SQLite-backed alert storage
+- Web dashboard with charts (Chart.js)
+- Real-time alert visualization
+
+## Tech Stack
+- Python (Flask)
+- SQLite
+- Chart.js
+
+## Architecture
+Agent → Server → Detection Engine → Database → Dashboard
+
+## Setup
+1. Install dependencies:
+   pip install -r requirements.txt
+
+2. Run server:
+   cd server
+   python app.py
+
+3. Run dashboard:
+   cd dashboard
+   python app.py
+
+## Future Improvements
+- Docker deployment
+- Authentication system
+- Advanced correlation rules

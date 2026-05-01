@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>DynXSec</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body { margin:0;font-family:"Segoe UI",Arial;background:#f4f6f9; }
+
+        .sev-high{color:#dc2626;font-weight:bold;}
+        .sev-medium{color:#f59e0b;font-weight:bold;}
+        .sev-low{color:#16a34a;font-weight:bold;}
+
+        .container{display:flex;min-height:100vh;}
+
+        .sidebar{width:220px;background:#111827;color:white;padding:20px;}
+        .nav-item{padding:12px;margin-top:10px;cursor:pointer;border-radius:6px;}
+        .nav-item:hover,.active{background:#374151;}
+
+        .main{flex:1;padding:20px;}
+        .topbar{background:white;padding:15px;border-radius:10px;margin-bottom:20px;}
+
+        .cards{display:flex;gap:20px;}
+        .card{background:white;padding:20px;flex:1;text-align:center;border-radius:12px;}
+        .card h3{margin:0;font-size:14px;color:#6b7280;}
+        .card p{font-size:28px;margin:10px 0 0;font-weight:bold;}
+
+        .chart-container{background:white;padding:20px;border-radius:12px;margin-top:20px;}
+        canvas{width:100%!important;height:350px!important;}
+
+        table{width:100%;border-collapse:collapse;background:white;border-radius:12px;}
+        th,td{padding:12px;border-bottom:1px solid #eee;}
+        th{background:#f9fafb;cursor:pointer;}
+        tr:hover{background:#f3f4f6;}
+
+        .badge{padding:6px 12px;border-radius:999px;font-size:11px;font-weight:600;}
+        .open{background:#fee2e2;color:#b91c1c;}
+        .investigating{background:#fef3c7;color:#92400e;}
+        .closed{background:#d1fae5;color:#065f46;}
+
+        .status-cell{display:flex;align-items:center;gap:10px;}
+        .status-select{opacity:0;font-size:11px;transition:0.2s;}
+        .status-cell:hover .status-select{opacity:1;}
+
+        #alerts-pagination{margin-top:15px;display:flex;gap:6px;flex-wrap:wrap;}
+        #alerts-pagination button{min-width:36px;height:36px;border-radius:8px;background: #6b7280;}
+        #alerts-pagination .active{background:#3b82f6;color:white;}
+
+        #logs-table {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        #logs table {
+            display: block;
+        }
+
+        #logs thead, #logs tbody {
+            display: table;
+            width: 100%;
+            table-layout: fixed;
+        }
+
+        button{padding:6px 12px;border:none;border-radius:6px;background:#2563eb;color:white;cursor:pointer;}
+        button:hover{background:#1d4ed8;}
+
+        .hidden{display:none;}
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <div class="sidebar">
+        <h2>DynXSec</h2>
+        <div class="nav-item" onclick="showTab('overview')">Overview</div>
+        <div class="nav-item" onclick="showTab('logs')">Logs</div>
+        <div class="nav-item" onclick="showTab('alerts')">Alerts</div>
+        <div class="nav-item" onclick="showTab('cases')">Cases</div>
+    </div>
+
+    <div class="main">
+
+        <div class="topbar"><h2>Security Dashboard</h2></div>
+
+        <!-- OVERVIEW -->
+        <div id="overview" class="tab">
+            <div class="cards">
+                <div class="card"><h3>Logs</h3><p>{{ log_count }}</p></div>
+                <div class="card"><h3>Alerts</h3><p>{{ alert_count }}</p></div>
+                <div class="card"><h3>Cases</h3><p>{{ case_count }}</p></div>
+            </div>
+
+            <div class="chart-container">
+                <canvas id="alertsChart"></canvas>
+            </div>
+        </div>
+
+        <!-- LOGS -->
+        <div id="logs" class="tab hidden">
+            <h3>Logs</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th onclick="sortLogs('timestamp')">Time ⬍</th>
+                        <th onclick="sortLogs('ip')">IP ⬍</th>
+                        <th onclick="sortLogs('event')">Event ⬍</th>
+                        <th onclick="sortLogs('status')">Status ⬍</th>
+                    </tr>
+                </thead>
+                <tbody id="logs-table"></tbody>
+            </table>
+        </div>
+
+        <!-- ALERTS -->
+        <div id="alerts" class="tab hidden">
+            <h3>Alerts</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th onclick="sortAlerts('id')">ID ⬍</th>
+                        <th>Type</th>
+                        <th>IP</th>
+                        <th onclick="sortAlerts('severity')">Severity ⬍</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="alerts-table"></tbody>
+            </table>
+
+            <div id="alerts-pagination"></div>
+        </div>
+
+        <!-- CASES -->
+        <div id="cases" class="tab hidden">
+            <h3>Cases</h3>
+
+            <select onchange="filterCases(this.value)">
+                <option value="all">All</option>
+                <option value="open">Open</option>
+                <option value="investigating">Investigating</option>
+                <option value="closed">Closed</option>
+            </select>
+
+            <br><br>
+
+            <table id="casesTable">
+                <tr>
+                    <th>ID</th><th>Type</th><th>IP</th>
+                    <th onclick="sortCases('status')">Status ⬍</th>
+                    <th>Notes</th>
+                    <th onclick="sortCases('created')">Created ⬍</th>
+                </tr>
+
+                {% for case in cases %}
+                <tr data-status="{{ case[1]|lower }}">
+                    <td>{{ case[0] }}</td>
+                    <td>{{ case[4] }}</td>
+                    <td>{{ case[5] }}</td>
+
+                    <td>
+                        <div class="status-cell">
+                            <span class="badge {{ case[1]|lower }}">{{ case[1] }}</span>
+
+                            <select class="status-select"
+                                onchange="updateCase({{ case[0] }}, this.value)">
+                                <option value="open">Open</option>
+                                <option value="investigating">Investigating</option>
+                                <option value="closed">Closed</option>
+                            </select>
+                        </div>
+                    </td>
+
+                    <td>{{ case[2] }}</td>
+                    <td>{{ case[3] }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+
+    </div>
+</div>
+
+<script>
+
+const API_BASE = "http://127.0.0.1:5000";
+
+
+
+const limit = 20;
+let currentLogs = [];
+let currentAlerts = [];
+let sortDirection = 1;
+
+// SORT STATE
+let logSortField = null, logSortDir = 1;
+let alertSortField = null, alertSortDir = 1;
+let caseSortField = null, caseSortDir = 1;
+
+window.onload = function () {
+    showTab(localStorage.getItem("activeTab") || "overview");
+    fetchLogs(1);
+
+    let typeData = {};
+    try { typeData = {{ type_counts | tojson }}; } catch(e){}
+
+    if(Object.keys(typeData).length){
+        new Chart(document.getElementById("alertsChart"),{
+            type:"bar",
+            data:{labels:Object.keys(typeData),
+            datasets:[{label:"Alerts",data:Object.values(typeData)}]}
+        });
+    }
+};
+
+function showTab(tab){
+    document.querySelectorAll(".tab").forEach(t=>t.classList.add("hidden"));
+    document.getElementById(tab).classList.remove("hidden");
+    localStorage.setItem("activeTab",tab);
+
+    if(tab==="logs")fetchLogs(1);
+    if(tab==="alerts")fetchAlerts(1);
+}
+
+async function fetchLogs(page=1){
+    let res=await fetch(`${API_BASE}/logs?page=${page}&limit=${limit}`);
+    let data=await res.json();
+    currentLogs=data.logs;
+    applyLogSort(); 
+    updateLogs(currentLogs);
+}
+
+function updateLogs(logs){
+    let table=document.getElementById("logs-table");
+    table.innerHTML="";
+    logs.forEach(l=>{
+        table.innerHTML+=`<tr>
+        <td>${l.timestamp||l[3]}</td>
+        <td>${l.ip||l[0]}</td>
+        <td>${l.event||l[1]}</td>
+        <td>${l.status||l[2]}</td>
+        </tr>`;
+    });
+}
+
+
+
+// ---------------- LOG SORT ----------------
+function sortLogs(field){
+    if(logSortField === field){
+        logSortDir *= -1;
+    } else {
+        logSortField = field;
+        logSortDir = 1;
+    }
+
+    applyLogSort();
+    updateLogs(currentLogs);
+}
+
+function applyLogSort(){
+    if(!logSortField) return;
+
+    currentLogs.sort((a,b)=>{
+        let v1 = a[logSortField] || "";
+        let v2 = b[logSortField] || "";
+
+        if(logSortField === "timestamp"){
+            return (new Date(v1) - new Date(v2)) * logSortDir;
+        }
+
+        return v1.toString().localeCompare(v2.toString()) * logSortDir;
+    });
+}
+
+
+async function fetchAlerts(page=1){
+    let res = await fetch(
+        `${API_BASE}/alerts?page=${page}&limit=${limit}&sort=${alertSortField || 'id'}&dir=${alertSortDir === 1 ? 'asc' : 'desc'}`
+    );
+
+    let data = await res.json();
+
+    currentAlerts = data.alerts;
+
+    updateAlerts(currentAlerts);
+    renderPagination(data.total,page);
+}
+
+function updateAlerts(alerts){
+    let table=document.getElementById("alerts-table");
+    table.innerHTML="";
+
+    alerts.forEach(a=>{
+
+        let cls = a.severity==="high"
+            ? "sev-high"
+            : a.severity==="medium"
+            ? "sev-medium"
+            : "sev-low";
+
+        table.innerHTML+=`<tr>
+        <td>${a.id}</td>
+        <td>${a.type}</td>
+        <td>${a.ip}</td>
+        <td class="${cls}">${a.severity}</td>
+        <td><button onclick="createCase(${a.id})">Create Case</button></td>
+        </tr>`;
+    });
+}
+
+function sortAlerts(field){
+    if(alertSortField === field){
+        alertSortDir *= -1;
+    } else {
+        alertSortField = field;
+        alertSortDir = 1;
+    }
+
+    fetchAlerts(1); 
+}
+
+function applyAlertSort(){
+    if(!alertSortField) return;
+
+    const severityRank = { high:3, medium:2, low:1 };
+
+    currentAlerts.sort((a,b)=>{
+
+        if(alertSortField === "severity"){
+            return (severityRank[a.severity] - severityRank[b.severity]) * alertSortDir;
+        }
+
+        if(alertSortField === "id"){
+            return (a.id - b.id) * alertSortDir;
+        }
+
+        return 0;
+    });
+}
+
+function renderPagination(total,page){
+    let pages = Math.ceil(total/limit);
+
+    let html = `<button ${page===1?'disabled':''} onclick="fetchAlerts(${page-1})">Prev</button>`;
+
+    for(let i=1;i<=pages;i++){
+        html += `<button class="${i===page?'active':''}" onclick="fetchAlerts(${i})">${i}</button>`;
+    }
+
+    html += `<button ${page===pages?'disabled':''} onclick="fetchAlerts(${page+1})">Next</button>`;
+
+    document.getElementById("alerts-pagination").innerHTML = html;
+}
+
+function createCase(id){
+    const notes = prompt("Enter case notes:") || "";
+    fetch(`${API_BASE}/create_case`,{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+            alert_id: id,
+            notes: notes
+        })
+    })
+    .then(res => res.json())
+    .then(() => {
+        alert("Case created ");
+        location.reload();
+    })
+    .catch(err => console.error(err));
+}
+
+function updateCase(id,status){
+    fetch(`${API_BASE}/update_case`,{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({case_id:id,status:status})
+    }).then(()=>location.reload());
+}
+
+function filterCases(status){
+    document.querySelectorAll("#casesTable tr").forEach((r,i)=>{
+        if(i===0)return;
+        let s=(r.dataset.status||"").toLowerCase();
+        r.style.display=(status==="all"||s===status)?"":"none";
+    });
+}
+
+function sortCases(field){
+
+    if(caseSortField === field){
+        caseSortDir *= -1;
+    } else {
+        caseSortField = field;
+        caseSortDir = 1;
+    }
+
+    const statusRank = {
+        open: 1,
+        investigating: 2,
+        closed: 3
+    };
+
+    let rows = Array.from(document.querySelectorAll("#casesTable tr")).slice(1);
+
+    rows.sort((a,b)=>{
+
+        if(field === "status"){
+            let s1 = statusRank[(a.dataset.status||"").toLowerCase()];
+            let s2 = statusRank[(b.dataset.status||"").toLowerCase()];
+            return (s1 - s2) * caseSortDir;
+        }
+
+        if(field === "created"){
+            let d1 = new Date(a.children[5].innerText);
+            let d2 = new Date(b.children[5].innerText);
+            return (d1 - d2) * caseSortDir;
+        }
+
+        return 0;
+    });
+
+    let table = document.getElementById("casesTable");
+
+    rows.forEach(row => table.appendChild(row));
+}
+
+</script>
+
+</body>
+</html>
