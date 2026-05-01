@@ -1,35 +1,40 @@
-# Mini SIEM System (Python)
+#  DynXSec 
 
-A lightweight Security Information and Event Management (SIEM) system built using Python.
+DynXSec is a lightweight **Security Information and Event Management (SIEM)** system designed for **real-time monitoring, alerting, and case management**.
 
-## Features
-- Log collection via agent (Linux/Windows ready)
-- Rule-based threat detection (brute force, suspicious activity)
-- SQLite-backed alert storage
-- Web dashboard with charts (Chart.js)
-- Real-time alert visualization
 
-## Tech Stack
-- Python (Flask)
-- SQLite
-- Chart.js
+##  Features
 
-## Architecture
-Agent → Server → Detection Engine → Database → Dashboard
+###  Security Dashboard
+###  Log Management
+###  Alert Engine
+###  Case Management
 
-## Setup
-1. Install dependencies:
-   pip install -r requirements.txt
 
-2. Run server:
-   cd server
-   python app.py
+##  Setup Instructions
 
-3. Run dashboard:
-   cd dashboard
-   python app.py
+### 1. Clone Repository
 
-## Future Improvements
-- Docker deployment
-- Authentication system
-- Advanced correlation rules
+```bash
+git clone https://github.com/your-username/DynXSec.git
+cd DynXSec
+```
+
+### 2. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Run Backend Server
+
+```bash
+cd server
+python app.py
+```
+
+### 4. Open Frontend
+
+Open `index.html` in your browser
+
+
