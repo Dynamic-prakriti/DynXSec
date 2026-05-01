@@ -1,17 +1,19 @@
-#  DynXSec 
+# DynXSec
 
 DynXSec is a lightweight **Security Information and Event Management (SIEM)** system designed for **real-time monitoring, alerting, and case management**.
 
+---
 
-##  Features
+## Features
 
-###  Security Dashboard
-###  Log Management
-###  Alert Engine
-###  Case Management
+* **Security Dashboard**
+* **Log Management**
+* **Alert Engine**
+* **Case Management**
 
+---
 
-##  Setup Instructions
+## Setup Instructions
 
 ### 1. Clone Repository
 
@@ -37,4 +39,4 @@ python app.py
 
 Open `index.html` in your browser
 
-
+---
