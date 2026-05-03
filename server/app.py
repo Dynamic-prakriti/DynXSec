@@ -92,50 +92,36 @@ def get_data():
         "cases": get_cases()
     })
 
-
-@app.route("/logs")
-def get_logs_paginated():
+@app.route("/logs", methods=["GET"])
+def get_logs():
     page = int(request.args.get("page", 1))
-    limit = int(request.args.get("limit", 50))
+    limit = int(request.args.get("limit", 20))
     offset = (page - 1) * limit
+
+    sort = request.args.get("sort", "timestamp")
+    direction = request.args.get("dir", "desc")
 
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    cursor.execute(f"""
-        SELECT ip, event, status, timestamp
+    query = f"""
+        SELECT timestamp, ip, event, status
         FROM logs
-        ORDER BY timestamp DESC
+        ORDER BY {sort} {direction}
         LIMIT ? OFFSET ?
-    """, (limit, offset))
+    """
 
-    rows = cursor.fetchall()
-
-    #  convert to JSON-friendly format
-    logs = []
-    for r in rows:
-        logs.append({
-            "ip": r[0],
-            "event": r[1],
-            "status": r[2],
-            "timestamp": r[3]
-        })
-
-    cursor.execute("SELECT COUNT(*) FROM logs")
-    total = cursor.fetchone()[0]
-
+    cursor.execute(query, (limit, offset))
+    logs = cursor.fetchall()
     conn.close()
 
-    return jsonify({
-        "logs": logs,
-        "total": total
-    })
+    return jsonify({"logs": logs})
 
 
 @app.route("/alerts")
 def get_alerts_paginated():
     page = int(request.args.get("page", 1))
-    limit = int(request.args.get("limit", 50))
+    limit = int(request.args.get("limit", 20))
     offset = (page - 1) * limit
 
     sort = request.args.get("sort", "id")

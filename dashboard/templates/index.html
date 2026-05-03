@@ -46,19 +46,34 @@
         #alerts-pagination button{min-width:36px;height:36px;border-radius:8px;background: #6b7280;}
         #alerts-pagination .active{background:#3b82f6;color:white;}
 
-        #logs-table {
-            max-height: 500px;
+        #logs {
+            height: calc(100vh - 140px);
             overflow-y: auto;
+            background: white;
+            border-radius: 12px;
+            padding: 0; 
         }
 
         #logs table {
-            display: block;
+            width: 100%;
+            border-collapse: collapse;
         }
 
-        #logs thead, #logs tbody {
-            display: table;
-            width: 100%;
-            table-layout: fixed;
+        #logs th, #logs td {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+
+        #logs thead th {
+            position: sticky;
+            top: 0;
+            background: white;        
+            z-index: 100;             
+            border-bottom: 2px solid #ddd;
+        }
+
+        #logs thead {
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
 
         button{padding:6px 12px;border:none;border-radius:6px;background:#2563eb;color:white;cursor:pointer;}
@@ -111,7 +126,11 @@
                 </thead>
                 <tbody id="logs-table"></tbody>
             </table>
+
+        <p id="loadingText" style="text-align:center; display:none;">Loading...</p>
         </div>
+
+        
 
         <!-- ALERTS -->
         <div id="alerts" class="tab hidden">
@@ -186,21 +205,23 @@
 
 const API_BASE = "http://127.0.0.1:5000";
 
+let logPage = 1;
+let isLoading = false;
+let hasMore = true;
+const LIMIT = 20;
 
-
-const limit = 20;
 let currentLogs = [];
 let currentAlerts = [];
 let sortDirection = 1;
 
 // SORT STATE
-let logSortField = null, logSortDir = 1;
+let logSortField = "timestamp",  logSortDir = "desc";
 let alertSortField = null, alertSortDir = 1;
 let caseSortField = null, caseSortDir = 1;
 
+
 window.onload = function () {
     showTab(localStorage.getItem("activeTab") || "overview");
-    fetchLogs(1);
 
     let typeData = {};
     try { typeData = {{ type_counts | tojson }}; } catch(e){}
@@ -208,8 +229,13 @@ window.onload = function () {
     if(Object.keys(typeData).length){
         new Chart(document.getElementById("alertsChart"),{
             type:"bar",
-            data:{labels:Object.keys(typeData),
-            datasets:[{label:"Alerts",data:Object.values(typeData)}]}
+            data:{
+                labels:Object.keys(typeData),
+                datasets:[{
+                    label:"Alerts",
+                    data:Object.values(typeData)
+                }]
+            }
         });
     }
 };
@@ -219,65 +245,76 @@ function showTab(tab){
     document.getElementById(tab).classList.remove("hidden");
     localStorage.setItem("activeTab",tab);
 
-    if(tab==="logs")fetchLogs(1);
+    if(tab==="logs"){
+    document.getElementById("logs-table").innerHTML = "";
+    logPage = 1;
+    hasMore = true;
+    loadLogs();
+    }
+
     if(tab==="alerts")fetchAlerts(1);
 }
 
-async function fetchLogs(page=1){
-    let res=await fetch(`${API_BASE}/logs?page=${page}&limit=${limit}`);
-    let data=await res.json();
-    currentLogs=data.logs;
-    applyLogSort(); 
-    updateLogs(currentLogs);
+
+const loader = document.getElementById("loadingText");
+
+function loadLogs() {
+    if (isLoading || !hasMore) return;
+
+    isLoading = true;
+    loader.style.display = "block";
+
+    fetch(`${API_BASE}/logs?page=${logPage}&limit=${LIMIT}&sort=${logSortField}&dir=${logSortDir}`)
+        .then(res => res.json())
+        .then(res => {
+            const data = res.logs;
+
+            if (data.length < LIMIT) hasMore = false;
+
+            const table = document.getElementById("logs-table");
+
+            data.forEach(log => {
+                let row = table.insertRow();
+                row.innerHTML = `
+                    <td>${log[0]}</td>
+                    <td>${log[1]}</td>
+                    <td>${log[2]}</td>
+                    <td>${log[3]}</td>
+                `;
+            });
+
+            logPage++;
+        })
+        .finally(() => {
+            isLoading = false;
+            loader.style.display = "none";
+        });
 }
 
-function updateLogs(logs){
-    let table=document.getElementById("logs-table");
-    table.innerHTML="";
-    logs.forEach(l=>{
-        table.innerHTML+=`<tr>
-        <td>${l.timestamp||l[3]}</td>
-        <td>${l.ip||l[0]}</td>
-        <td>${l.event||l[1]}</td>
-        <td>${l.status||l[2]}</td>
-        </tr>`;
-    });
-}
-
-
-
-// ---------------- LOG SORT ----------------
 function sortLogs(field){
     if(logSortField === field){
-        logSortDir *= -1;
+        logSortDir = logSortDir === "asc" ? "desc" : "asc";
     } else {
         logSortField = field;
-        logSortDir = 1;
+        logSortDir = "asc";
     }
 
-    applyLogSort();
-    updateLogs(currentLogs);
+    // RESET SCROLL DATA
+    document.getElementById("logs-table").innerHTML = "";
+    logPage = 1;
+    hasMore = true;
+
+    loadLogs();
 }
 
-function applyLogSort(){
-    if(!logSortField) return;
-
-    currentLogs.sort((a,b)=>{
-        let v1 = a[logSortField] || "";
-        let v2 = b[logSortField] || "";
-
-        if(logSortField === "timestamp"){
-            return (new Date(v1) - new Date(v2)) * logSortDir;
-        }
-
-        return v1.toString().localeCompare(v2.toString()) * logSortDir;
-    });
+function getArrow(field){
+    if(logSortField !== field) return "⬍";
+    return logSortDir === "asc" ? "⬆" : "⬇";
 }
-
 
 async function fetchAlerts(page=1){
     let res = await fetch(
-        `${API_BASE}/alerts?page=${page}&limit=${limit}&sort=${alertSortField || 'id'}&dir=${alertSortDir === 1 ? 'asc' : 'desc'}`
+        `${API_BASE}/alerts?page=${page}&limit=${LIMIT}&sort=${alertSortField || 'id'}&dir=${alertSortDir === 1 ? 'asc' : 'desc'}`
     );
 
     let data = await res.json();
@@ -341,7 +378,7 @@ function applyAlertSort(){
 }
 
 function renderPagination(total,page){
-    let pages = Math.ceil(total/limit);
+    let pages = Math.ceil(total/LIMIT);
 
     let html = `<button ${page===1?'disabled':''} onclick="fetchAlerts(${page-1})">Prev</button>`;
 
@@ -426,6 +463,23 @@ function sortCases(field){
 
     rows.forEach(row => table.appendChild(row));
 }
+
+document.addEventListener("DOMContentLoaded", () => {
+
+    const logsContainer = document.getElementById("logs");
+
+    logsContainer.addEventListener("scroll", () => {
+
+        if (localStorage.getItem("activeTab") !== "logs") return;
+
+        if (logsContainer.scrollTop + logsContainer.clientHeight >= logsContainer.scrollHeight - 50) {
+            loadLogs();
+        }
+
+    });
+
+});
+
 
 </script>
 
