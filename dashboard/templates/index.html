@@ -76,6 +76,7 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
 
+
         button{padding:6px 12px;border:none;border-radius:6px;background:#2563eb;color:white;cursor:pointer;}
         button:hover{background:#1d4ed8;}
 
@@ -115,6 +116,33 @@
         <!-- LOGS -->
         <div id="logs" class="tab hidden">
             <h3>Logs</h3>
+
+            
+            <!--filter-->
+                <div style="margin-bottom:15px; display:flex; gap:10px; flex-wrap:wrap;">
+
+                    <input id="filter-ip" placeholder="Filter by IP" style="padding:8px; border-radius:6px; border:1px solid #ccc;">
+
+                    <select id="filter-status" style="padding:8px; border-radius:6px; border:1px solid #ccc;">
+                        <option value="">All Status</option>
+                    </select>
+
+                    <input id="filter-keyword" placeholder="Search event..." style="padding:8px; border-radius:6px; border:1px solid #ccc;">
+                    <select id="filter-date" style="padding:8px; border-radius:6px; border:1px solid #ccc;">
+                        <option value="">All Time</option>
+                        <option value="24h">Last 24 Hours</option>
+                        <option value="7d">Last 7 Days</option>
+                        <option value="custom">Custom</option>
+                    </select>
+
+                    <input type="date" id="start-date" style="display:none;">
+                    <input type="date" id="end-date" style="display:none;">
+
+                    <button onclick="applyFilters()">Apply</button>
+                    <button onclick="resetFilters()" style="background:#6b7280;">Reset</button>
+
+                </div>
+                
             <table>
                 <thead>
                     <tr>
@@ -219,6 +247,72 @@ let logSortField = "timestamp",  logSortDir = "desc";
 let alertSortField = null, alertSortDir = 1;
 let caseSortField = null, caseSortDir = 1;
 
+filters = {
+    ip: "",
+    status: "",
+    keyword: "",
+    date: "",
+    startDate: "",
+    endDate: ""
+};
+
+async function loadStatuses(){
+    let res = await fetch(`${API_BASE}/log-statuses`);
+    let data = await res.json();
+
+    let select = document.getElementById("filter-status");
+
+    select.innerHTML = `<option value="">All Status</option>`;
+
+    data.statuses.forEach(s=>{
+        select.innerHTML += `<option value="${s}">${s}</option>`;
+    });
+}
+
+document.getElementById("filter-date").addEventListener("change", function(){
+    const show = this.value === "custom";
+    document.getElementById("start-date").style.display = show ? "block" : "none";
+    document.getElementById("end-date").style.display = show ? "block" : "none";
+});
+
+function applyFilters(){
+    filters.ip = document.getElementById("filter-ip").value;
+    filters.status = document.getElementById("filter-status").value;
+    filters.keyword = document.getElementById("filter-keyword").value;
+    filters.date = document.getElementById("filter-date").value;
+    filters.startDate = document.getElementById("start-date").value;
+    filters.endDate = document.getElementById("end-date").value;
+  
+    if(filters.date !== "custom"){
+    filters.startDate = "";
+    filters.endDate = "";
+    }
+
+    // reset logs
+    document.getElementById("logs-table").innerHTML = "";
+    logPage = 1;
+    hasMore = true;
+
+    loadLogs();
+}
+
+function resetFilters(){
+    filters = { ip:"", status:"", keyword:"" };
+
+    document.getElementById("filter-ip").value = "";
+    document.getElementById("filter-status").value = "";
+    document.getElementById("filter-keyword").value = "";
+    document.getElementById("filter-date").value = "";
+    document.getElementById("start-date").value = "";
+    document.getElementById("end-date").value = "";
+
+    document.getElementById("logs-table").innerHTML = "";
+    logPage = 1;
+    hasMore = true;
+
+    loadLogs();
+}
+
 
 window.onload = function () {
     showTab(localStorage.getItem("activeTab") || "overview");
@@ -240,21 +334,23 @@ window.onload = function () {
     }
 };
 
+
 function showTab(tab){
     document.querySelectorAll(".tab").forEach(t=>t.classList.add("hidden"));
     document.getElementById(tab).classList.remove("hidden");
     localStorage.setItem("activeTab",tab);
 
     if(tab==="logs"){
-    document.getElementById("logs-table").innerHTML = "";
-    logPage = 1;
-    hasMore = true;
-    loadLogs();
+        loadStatuses();   
+
+        document.getElementById("logs-table").innerHTML = "";
+        logPage = 1;
+        hasMore = true;
+        loadLogs();
     }
 
-    if(tab==="alerts")fetchAlerts(1);
+    if(tab==="alerts") fetchAlerts(1);
 }
-
 
 const loader = document.getElementById("loadingText");
 
@@ -264,7 +360,20 @@ function loadLogs() {
     isLoading = true;
     loader.style.display = "block";
 
-    fetch(`${API_BASE}/logs?page=${logPage}&limit=${LIMIT}&sort=${logSortField}&dir=${logSortDir}`)
+    const params = new URLSearchParams({
+        page: logPage,
+        limit: LIMIT,
+        sort: logSortField,
+        dir: logSortDir,
+        ip: filters.ip,
+        status: filters.status,
+        keyword: filters.keyword,
+        date: filters.date,
+        startDate: filters.startDate || "",
+        endDate: filters.endDate || ""
+    });
+
+    fetch(`${API_BASE}/logs?${params.toString()}`)
         .then(res => res.json())
         .then(res => {
             const data = res.logs;
@@ -485,3 +594,4 @@ document.addEventListener("DOMContentLoaded", () => {
 
 </body>
 </html>
+

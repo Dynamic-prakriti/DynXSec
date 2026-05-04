@@ -92,6 +92,7 @@ def get_data():
         "cases": get_cases()
     })
 
+
 @app.route("/logs", methods=["GET"])
 def get_logs():
     page = int(request.args.get("page", 1))
@@ -101,22 +102,68 @@ def get_logs():
     sort = request.args.get("sort", "timestamp")
     direction = request.args.get("dir", "desc")
 
+    ip = request.args.get("ip", "")
+    status = request.args.get("status", "")
+    keyword = request.args.get("keyword", "")
+
+    start = request.args.get("startDate")
+    end = request.args.get("endDate")
+
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    query = f"""
-        SELECT timestamp, ip, event, status
-        FROM logs
-        ORDER BY {sort} {direction}
-        LIMIT ? OFFSET ?
-    """
+    query = "SELECT timestamp, ip, event, status FROM logs WHERE 1=1"
+    params = []
 
-    cursor.execute(query, (limit, offset))
+    if ip:
+        query += " AND ip LIKE ?"
+        params.append(f"%{ip}%")
+
+    if status:
+        query += " AND status = ?"
+        params.append(status)
+
+    if keyword:
+        query += " AND event LIKE ?"
+        params.append(f"%{keyword}%")
+
+    date = request.args.get("date")
+
+    if date == "24h":
+        query += " AND datetime(timestamp) >= datetime('now','-1 day')"
+    elif date == "7d":
+        query += " AND datetime(timestamp) >= datetime('now','-7 day')"
+
+     # custom date 
+    if start and end:
+        query += " AND date(timestamp) BETWEEN date(?) AND date(?)"
+        params.extend([start, end])
+
+    query += f" ORDER BY {sort} {direction} LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+
+    cursor.execute(query, params)
     logs = cursor.fetchall()
+
     conn.close()
 
     return jsonify({"logs": logs})
 
+  
+
+@app.route("/log-statuses")
+def get_log_statuses():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT DISTINCT status FROM logs")
+    rows = cursor.fetchall()
+
+    conn.close()
+
+    statuses = [r[0] for r in rows if r[0]]
+
+    return jsonify({"statuses": statuses})
 
 @app.route("/alerts")
 def get_alerts_paginated():
@@ -173,5 +220,3 @@ init_db()
 
 if __name__ == "__main__":
     app.run(port=5000, debug=True)
-
-    
