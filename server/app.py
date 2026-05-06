@@ -1,9 +1,12 @@
 import os
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from routes.logs import log_bp
 import sqlite3
 from database import init_db, insert_case, get_logs, get_alerts, get_cases
 from flask_cors import CORS
+import csv
+from datetime import datetime
+
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DB_PATH = os.path.join(BASE_DIR, "siem.db")
@@ -164,6 +167,66 @@ def get_log_statuses():
     statuses = [r[0] for r in rows if r[0]]
 
     return jsonify({"statuses": statuses})
+
+@app.route("/export_logs", methods=["GET"])
+def export_logs():
+
+    sort = request.args.get("sort", "timestamp")
+    direction = request.args.get("dir", "desc")
+
+    ip = request.args.get("ip", "")
+    status = request.args.get("status", "")
+    keyword = request.args.get("keyword", "")
+
+    date = request.args.get("date")
+    start = request.args.get("startDate")
+    end = request.args.get("endDate")
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    query = "SELECT timestamp, ip, event, status FROM logs WHERE 1=1"
+    params = []
+
+    if ip:
+        query += " AND ip LIKE ?"
+        params.append(f"%{ip}%")
+
+    if status:
+        query += " AND status = ?"
+        params.append(status)
+
+    if keyword:
+        query += " AND event LIKE ?"
+        params.append(f"%{keyword}%")
+
+    if date == "24h":
+        query += " AND datetime(timestamp) >= datetime('now','-1 day')"
+    elif date == "7d":
+        query += " AND datetime(timestamp) >= datetime('now','-7 day')"
+
+    if start and end:
+        query += " AND date(timestamp) BETWEEN date(?) AND date(?)"
+        params.extend([start, end])
+
+    query += f" ORDER BY {sort} {direction}"
+
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+
+    conn.close()
+
+    # create CSV
+    def generate():
+        yield "timestamp,ip,event,status\n"
+        for r in rows:
+            yield f"{r[0]},{r[1]},{r[2]},{r[3]}\n"
+
+    return Response(
+        generate(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment;filename=logs.csv"}
+    )
 
 @app.route("/alerts")
 def get_alerts_paginated():

@@ -138,8 +138,13 @@
                     <input type="date" id="start-date" style="display:none;">
                     <input type="date" id="end-date" style="display:none;">
 
+
                     <button onclick="applyFilters()">Apply</button>
                     <button onclick="resetFilters()" style="background:#6b7280;">Reset</button>
+
+                    <button onclick="exportLogs()" style="background:#16a34a;">
+                        Export CSV
+                    </button>
 
                 </div>
                 
@@ -414,6 +419,22 @@ function sortLogs(field){
     hasMore = true;
 
     loadLogs();
+}
+
+function exportLogs(){
+    const params = new URLSearchParams({
+        sort: logSortField,
+        dir: logSortDir,
+        ip: filters.ip,
+        status: filters.status,
+        keyword: filters.keyword,
+        date: filters.date,
+        startDate: filters.startDate || "",
+        endDate: filters.endDate || ""
+    });
+
+    // trigger download
+    window.open(`${API_BASE}/export_logs?${params.toString()}`, "_blank");
 }
 
 function getArrow(field){

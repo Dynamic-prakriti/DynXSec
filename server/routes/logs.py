@@ -13,7 +13,7 @@ with open(RULES_PATH, "r") as f:
 
 log_bp = Blueprint("log_bp", __name__)
 
-# In-memory counters (simple for now)
+# In-memory counters 
 event_counter = defaultdict(int)
 
 # Store logs per IP
