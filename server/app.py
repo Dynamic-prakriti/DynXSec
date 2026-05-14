@@ -6,13 +6,27 @@ from database import init_db, insert_case, get_logs, get_alerts, get_cases
 from flask_cors import CORS
 import csv
 from datetime import datetime
-
+from flask_socketio import SocketIO
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DB_PATH = os.path.join(BASE_DIR, "siem.db")
 
 app = Flask(__name__)
 CORS(app)
+
+socketio = SocketIO(
+    app,
+    cors_allowed_origins="*",
+    async_mode="gevent"
+)
+
+def emit_new_log(timestamp, ip, event, status):
+    socketio.emit("new_log", {
+        "timestamp": timestamp,
+        "ip": ip,
+        "event": event,
+        "status": status
+    })
 
 # Register routes
 app.register_blueprint(log_bp)
@@ -60,8 +74,6 @@ def update_case():
     conn.close()
 
     return {"message": "updated"}
-    
-    return jsonify({"message": "Case updated"})
 
 @app.route("/data", methods=["GET"])
 def get_data():
@@ -90,14 +102,15 @@ def get_data():
     conn.close()
 
     return jsonify({
-        "logs": get_logs(),
-        "alerts": get_alerts(),
-        "cases": get_cases()
+    "logs": logs,
+    "alerts": alerts,
+    "cases": cases
     })
+   
 
 
 @app.route("/logs", methods=["GET"])
-def get_logs():
+def get_logs_paginated():
     page = int(request.args.get("page", 1))
     limit = int(request.args.get("limit", 20))
     offset = (page - 1) * limit
@@ -142,7 +155,18 @@ def get_logs():
         query += " AND date(timestamp) BETWEEN date(?) AND date(?)"
         params.extend([start, end])
 
-    query += f" ORDER BY {sort} {direction} LIMIT ? OFFSET ?"
+    valid_fields = {
+    "timestamp": "timestamp",
+    "ip": "ip",
+    "event": "event",
+    "status": "status"
+    }   
+
+    sort_field = valid_fields.get(sort, "timestamp")
+    order = "ASC" if direction == "asc" else "DESC"
+
+    query += f" ORDER BY {sort_field} {order} LIMIT ? OFFSET ?"
+    #query += f" ORDER BY {sort_field} {order} LIMIT ? OFFSET ?"
     params.extend([limit, offset])
 
     cursor.execute(query, params)
@@ -209,7 +233,19 @@ def export_logs():
         query += " AND date(timestamp) BETWEEN date(?) AND date(?)"
         params.extend([start, end])
 
-    query += f" ORDER BY {sort} {direction}"
+    valid_fields = {
+    "timestamp": "timestamp",
+    "ip": "ip",
+    "event": "event",
+    "status": "status"
+    }
+
+    sort_field = valid_fields.get(sort, "timestamp")
+    order = "ASC" if direction == "asc" else "DESC"
+
+    query += f" ORDER BY {sort_field} {order}"
+
+    #query += f" ORDER BY {sort} {direction}"
 
     cursor.execute(query, params)
     rows = cursor.fetchall()
@@ -227,6 +263,34 @@ def export_logs():
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment;filename=logs.csv"}
     )
+
+@app.route("/ingest_log", methods=["POST"])
+def ingest_log():
+
+    data = request.json
+
+    timestamp = data.get("timestamp")
+    ip = data.get("ip")
+    event = data.get("event")
+    status = data.get("status", "observed")
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        INSERT INTO logs (timestamp, ip, event, status)
+        VALUES (?, ?, ?, ?)
+    """, (timestamp, ip, event, status))
+
+    conn.commit()
+    conn.close()
+
+    #  realtime 
+    emit_new_log(timestamp, ip, event, status)
+
+    return jsonify({
+        "message": "log ingested"
+    })
 
 @app.route("/alerts")
 def get_alerts_paginated():
@@ -282,4 +346,5 @@ def get_alerts_paginated():
 init_db()
 
 if __name__ == "__main__":
-    app.run(port=5000, debug=True)
+    socketio.run(app, host="0.0.0.0", port=5000, debug=False)
+

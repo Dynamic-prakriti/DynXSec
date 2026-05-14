@@ -3,6 +3,7 @@
 <head>
     <title>DynXSec</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 
     <style>
         body { margin:0;font-family:"Segoe UI",Arial;background:#f4f6f9; }
@@ -252,7 +253,27 @@ let logSortField = "timestamp",  logSortDir = "desc";
 let alertSortField = null, alertSortDir = 1;
 let caseSortField = null, caseSortDir = 1;
 
-filters = {
+let socket;
+
+try {
+    socket = io(API_BASE);
+
+    socket.on("connect", () => {
+        console.log("WebSocket connected");
+    });
+
+    socket.on("connect_error", (err) => {
+        console.error("Socket connection failed:", err);
+    });
+
+} catch(err) {
+    console.error("Socket init failed:", err);
+}
+
+const loader = document.getElementById("loadingText");
+
+
+let filters = {
     ip: "",
     status: "",
     keyword: "",
@@ -260,6 +281,41 @@ filters = {
     startDate: "",
     endDate: ""
 };
+
+socket.on("new_log", (log) => {
+
+    const filtersActive =
+        filters.ip ||
+        filters.status ||
+        filters.keyword ||
+        filters.date;
+
+    // don't inject realtime rows while filters are active
+    if (filtersActive) {
+        return;
+    }
+
+    // only update when logs tab active
+    if (localStorage.getItem("activeTab") !== "logs") {
+        return;
+    }
+
+    const table = document.getElementById("logs-table");
+
+    let row = table.insertRow(0);
+
+    row.innerHTML = `
+        <td>${log.timestamp}</td>
+        <td>${log.ip}</td>
+        <td>${log.event}</td>
+        <td>${log.status}</td>
+    `;
+
+    // keep table size manageable
+    if (table.rows.length > 100) {
+        table.deleteRow(-1);
+    }
+});
 
 async function loadStatuses(){
     let res = await fetch(`${API_BASE}/log-statuses`);
@@ -323,7 +379,12 @@ window.onload = function () {
     showTab(localStorage.getItem("activeTab") || "overview");
 
     let typeData = {};
-    try { typeData = {{ type_counts | tojson }}; } catch(e){}
+
+    try {
+        typeData = {{ type_counts | tojson | safe }};
+    } catch(e) {
+        console.error("Chart data error:", e);
+    }
 
     if(Object.keys(typeData).length){
         new Chart(document.getElementById("alertsChart"),{
@@ -356,8 +417,6 @@ function showTab(tab){
 
     if(tab==="alerts") fetchAlerts(1);
 }
-
-const loader = document.getElementById("loadingText");
 
 function loadLogs() {
     if (isLoading || !hasMore) return;
@@ -522,7 +581,14 @@ function renderPagination(total,page){
 }
 
 function createCase(id){
-    const notes = prompt("Enter case notes:") || "";
+
+    const notes = prompt("Enter case notes:");
+
+    // user clicked Cancel
+    if (notes === null){
+        return;
+    }
+
     fetch(`${API_BASE}/create_case`,{
         method:"POST",
         headers:{"Content-Type":"application/json"},
@@ -533,7 +599,7 @@ function createCase(id){
     })
     .then(res => res.json())
     .then(() => {
-        alert("Case created ");
+        alert("Case created");
         location.reload();
     })
     .catch(err => console.error(err));
